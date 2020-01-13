@@ -9,19 +9,6 @@ from fipy import FaceVariable, CellVariable, Gmsh2DIn3DSpace, Viewer, TransientT
 from fipy.variables.variable import Variable
 from fipy.tools import numerix
 
-# define function to calculate uniaxial anisotropy
-def uniaxialHeff(m0, uax, coeff):
-    uaxx = uax[0]
-    uaxy = uax[1]
-    uaxz = uax[2]
-    unorm2 = (uaxx * uaxx) + (uaxy * uaxy) + (uaxz * uaxz)
-    unorm = numerix.sqrt(unorm2)
-    heffx = uaxx / unorm
-    heffy = uaxy / unorm
-    heffz = uaxz / unorm
-    mdotu = (m0[0] * heffx) + (m0[1] * heffy) + (m0[2] * heffz)
-    HeffMag = [[ (mdotu * heffx), (mdotu * heffy), (mdotu * heffz) ]]
-
 # define mesh
 mesh = Gmsh2DIn3DSpace('''
     radius = 1.0;
@@ -53,7 +40,61 @@ mesh = Gmsh2DIn3DSpace('''
 #
 
 mmag = FaceVariable(name=r"$mmag$", mesh=mesh) # doctest: +GMSH
-Xgrid = mesh.faceCenters[0]
-Ygrid = mesh.faceCenters[1]
-Zgrid = mesh.faceCenters[2]
-mmag.setValue(uniaxialHeff([[ Xgrid, Ygrid, Zgrid ]], numerix.array((0., 0., 1.0)), 1.0))
+gridCoor = mesh.faceCenters
+
+## Constants
+kBoltzmann = 1.38064852e-23
+mu0 = numerix.pi * 4.0e-7
+
+## LLG parameters
+##gamFac = 1.7608e11 * pi * 4.0e-7
+gamFac = 2.2128e5
+alphaDamping = 0.01
+Temperature = 300
+Msat = 1050e3
+magVolume = 2.0e-9 * (25e-9 * 25e-9) * numerix.pi
+D = alphaDamping * gamFac * kBoltzmann * Temperature / ((1 + alphaDamping) * Msat * magVolume)
+
+# Uniaxial anisotropy
+Ku2 = 800e3
+uAxis = numerix.array((0., 0., 1.))
+
+# Define arrays storing the torque terms in LLG
+TeffBase = numerix.zeros((3,len(gridCoor[0])), 'd')
+TuniaxBase = numerix.zeros((3,len(gridCoor[0])), 'd')
+
+# Define array of HeffBase that does into LLG
+# HeffBase contains Heff terms that only vary with m (independent of t)
+HeffBase = numerix.zeros((3,len(gridCoor[0])), 'd')
+HuniaxBase = numerix.zeros((3,len(gridCoor[0])), 'd')
+
+# Normalize uniaxial anisotropy axis vector
+uAxisNorm2 = (uAxis[0]*uAxis[0]) + (uAxis[1]*uAxis[1]) + (uAxis[2]*uAxis[2])
+uAxisNorm = numerix.sqrt(uAxisNorm2)
+uAxisUnit = uAxis / uAxisNorm
+HuniScaleFac = -2.0 * Ku2 / Msat
+
+for idx in range(len(gridCoor[0]) - 1):
+    m0x = gridCoor[0][idx]
+    m0y = gridCoor[1][idx]
+    m0z = gridCoor[2][idx]
+    mag2 = (m0x*m0x) + (m0y*m0y) + (m0z*m0z)
+    mag = numerix.sqrt(mag2)
+    mx = m0x / mag
+    my = m0y / mag
+    mz = m0z / mag
+    mdotu = mx*uAxisUnit[0] + my*uAxisUnit[1] + mz*uAxisUnit[2]
+    HuniaxBase[0][idx] = HuniScaleFac * mdotu * uAxisUnit[0]
+    HuniaxBase[1][idx] = HuniScaleFac * mdotu * uAxisUnit[1]
+    HuniaxBase[2][idx] = HuniScaleFac * mdotu * uAxisUnit[2]
+    mxHx = my*HuniaxBase[2][idx] - mz*HuniaxBase[1][idx]
+    mxHy = mz*HuniaxBase[0][idx] - mx*HuniaxBase[2][idx]
+    mxHz = mx*HuniaxBase[1][idx] - my*HuniaxBase[0][idx]
+
+    mxmxHx = my*mxHz - mz*mxHy
+    mxmxHy = mz*mxHx - mx*mxHz
+    mxmxHz = mx*mxHy - my*mxHx
+    TuniaxBase[0][idx] = -gamFac * (mxHx + alphaDamping * mxmxHx)
+    TuniaxBase[1][idx] = -gamFac * (mxHy + alphaDamping * mxmxHy)
+    TuniaxBase[2][idx] = -gamFac * (mxHz + alphaDamping * mxmxHz)
+
