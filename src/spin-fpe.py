@@ -74,6 +74,8 @@ uAxisNorm = numerix.sqrt(uAxisNorm2)
 uAxisUnit = uAxis / uAxisNorm
 HuniScaleFac = -2.0 * Ku2 / Msat
 
+print('Looping over')
+print(len(gridCoor[0]))
 for idx in range(len(gridCoor[0]) - 1):
     m0x = gridCoor[0][idx]
     m0y = gridCoor[1][idx]
@@ -97,4 +99,5 @@ for idx in range(len(gridCoor[0]) - 1):
     TuniaxBase[0][idx] = -gamFac * (mxHx + alphaDamping * mxmxHx)
     TuniaxBase[1][idx] = -gamFac * (mxHy + alphaDamping * mxmxHy)
     TuniaxBase[2][idx] = -gamFac * (mxHz + alphaDamping * mxmxHz)
-
+    print('Progress')
+    print(100.0 * idx/len(gridCoor[0]))
