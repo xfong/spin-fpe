@@ -8,6 +8,50 @@
 from fipy import FaceVariable, CellVariable, Gmsh2DIn3DSpace, Viewer, TransientTerm, DiffusionTerm, DefaultSolver
 from fipy.variables.variable import Variable
 from fipy.tools import numerix
+from joblib import Parallel, delayed
+import multiprocessing
+
+def NormDotProduct(mx, my, mz, uax, uay, uaz, scaleFac):
+    mag2 = (mx*mx) + (my*my) + (mz*mz)
+    mag = numerix.sqrt(mag2)
+    unorm2 = (uax*uax) + (uay*uay) + (uaz*uaz)
+    unorm = numerix.sqrt(unorm2)
+    dotProd = scaleFac * (((mx*uax) + (my*uay) + (mz*uaz)) / (mag * unorm))
+    return dotProd
+
+def ScaleVectorComp(ax, scaleFac):
+    return ax*scaleFac
+
+def UniaxialXComp(mx, my, mz, uax, uay, uaz, scaleFac):
+    mag2 = (mx*mx) + (my*my) + (mz*mz)
+    mag = numerix.sqrt(mag2)
+    unorm2 = (uax*uax) + (uay*uay) + (uaz*uaz)
+    unorm = numerix.sqrt(unorm2)
+    dotProd = scaleFac * (((mx*uax) + (my*uay) + (mz*uaz)) / (mag * unorm))
+    return dotProd * uax
+
+def UniaxialYComp(mx, my, mz, uax, uay, uaz, scaleFac):
+    mag2 = (mx*mx) + (my*my) + (mz*mz)
+    mag = numerix.sqrt(mag2)
+    unorm2 = (uax*uax) + (uay*uay) + (uaz*uaz)
+    unorm = numerix.sqrt(unorm2)
+    dotProd = scaleFac * (((mx*uax) + (my*uay) + (mz*uaz)) / (mag * unorm))
+    return dotProd * uay
+
+def UniaxialZComp(mx, my, mz, uax, uay, uaz, scaleFac):
+    mag2 = (mx*mx) + (my*my) + (mz*mz)
+    mag = numerix.sqrt(mag2)
+    unorm2 = (uax*uax) + (uay*uay) + (uaz*uaz)
+    unorm = numerix.sqrt(unorm2)
+    dotProd = scaleFac * (((mx*uax) + (my*uay) + (mz*uaz)) / (mag * unorm))
+    return dotProd * uaz
+
+def VectorCrossProduct(ax, ay, az, bx, by, bz, scaleFac):
+    outputVector = numerix.zeros(3,'d')
+    outputVector[0] = scaleFac*(ay*bz - az*by)
+    outputVector[1] = scaleFac*(az*bx - ax*bz)
+    outputVector[2] = scaleFac*(ax*by - ay*bx)
+    return outputVector
 
 # define mesh
 mesh = Gmsh2DIn3DSpace('''
@@ -76,28 +120,9 @@ HuniScaleFac = -2.0 * Ku2 / Msat
 
 print('Looping over')
 print(len(gridCoor[0]))
-for idx in range(len(gridCoor[0]) - 1):
-    m0x = gridCoor[0][idx]
-    m0y = gridCoor[1][idx]
-    m0z = gridCoor[2][idx]
-    mag2 = (m0x*m0x) + (m0y*m0y) + (m0z*m0z)
-    mag = numerix.sqrt(mag2)
-    mx = m0x / mag
-    my = m0y / mag
-    mz = m0z / mag
-    mdotu = mx*uAxisUnit[0] + my*uAxisUnit[1] + mz*uAxisUnit[2]
-    HuniaxBase[0][idx] = HuniScaleFac * mdotu * uAxisUnit[0]
-    HuniaxBase[1][idx] = HuniScaleFac * mdotu * uAxisUnit[1]
-    HuniaxBase[2][idx] = HuniScaleFac * mdotu * uAxisUnit[2]
-    mxHx = my*HuniaxBase[2][idx] - mz*HuniaxBase[1][idx]
-    mxHy = mz*HuniaxBase[0][idx] - mx*HuniaxBase[2][idx]
-    mxHz = mx*HuniaxBase[1][idx] - my*HuniaxBase[0][idx]
 
-    mxmxHx = my*mxHz - mz*mxHy
-    mxmxHy = mz*mxHx - mx*mxHz
-    mxmxHz = mx*mxHy - my*mxHx
-    TuniaxBase[0][idx] = -gamFac * (mxHx + alphaDamping * mxmxHx)
-    TuniaxBase[1][idx] = -gamFac * (mxHy + alphaDamping * mxmxHy)
-    TuniaxBase[2][idx] = -gamFac * (mxHz + alphaDamping * mxmxHz)
-    print('Progress')
-    print(100.0 * idx/len(gridCoor[0]))
+num_cores = multiprocessing.cpu_count()
+
+HuniaxBase[0] = Parallel(n_jobs=num_cores)(delayed(UniaxialXComp)(mesh.faceCenters[0][idx], mesh.faceCenters[1][idx], mesh.faceCenters[2][idx], uAxisUnit[0], uAxisUnit[1], uAxisUnit[2], HuniScaleFac) for idx in range(len(mesh.faceCenters[0])-1))
+#HuniaxBase[1] = HuniScaleFac * mdotu * uAxisUnit[1]
+#HuniaxBase[2] = HuniScaleFac * mdotu * uAxisUnit[2]
