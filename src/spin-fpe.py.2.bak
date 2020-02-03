@@ -98,13 +98,14 @@ phi = CellVariable(name=r"$\phi", mesh=mesh)
 phi.setValue(0.25 / numerix.pi)
 
 D = a = epsilon = 1.
+cv = numerix.array((0., 0., 1.))
 eqI = (TransientTerm()
       == DiffusionTerm(coeff=D)
-      - ExponentialConvectionTerm(coeff=TuniaxBase)) # doctest: +GMSH
+      - ExponentialConvectionTerm(coeff=cv)) # doctest: +GMSH
 
 eqX = (TransientTerm()
       == ExplicitDiffusionTerm(coeff=D)
-      - ExponentialConvectionTerm(coeff=TuniaxBase)) # doctest: +GMSH
+      - ExponentialConvectionTerm(coeff=cv)) # doctest: +GMSH
 
 steps = 10
 timeStepDuration = 1e-18

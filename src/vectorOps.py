@@ -5,9 +5,11 @@
 # distribution with two peaks, one at each poles of the sphere defined by the
 # axis of the anisotropy
 #
-from fipy import FaceVariable, CellVariable, Gmsh2DIn3DSpace, Viewer, TransientTerm, ExplicitDiffusionTerm, DiffusionTerm, ExponentialConvectionTerm, DefaultSolver
+from fipy import FaceVariable, CellVariable, Gmsh2DIn3DSpace, Viewer, TransientTerm, DiffusionTerm, DefaultSolver
 from fipy.variables.variable import Variable
 from fipy.tools import numerix
+from joblib import Parallel, delayed
+import multiprocessing
 
 # define mesh
 mesh = Gmsh2DIn3DSpace('''
@@ -69,53 +71,18 @@ HeffBase = numerix.zeros((3,len(gridCoor[0])), 'd')
 HuniaxBase = numerix.zeros((3,len(gridCoor[0])), 'd')
 
 # Normalize uniaxial anisotropy axis vector
-uAxisNorm = numerix.linalg.norm(uAxis)
+uAxisNorm2 = (uAxis.item(0)*uAxis.item(0)) + (uAxis.item(1)*uAxis.item(1)) + (uAxis.item(2)*uAxis.item(2))
+uAxisNorm = numerix.sqrt(uAxisNorm2)
 uAxisUnit = uAxis / uAxisNorm
 uAxisArr = numerix.tile(uAxisUnit, (len(gridCoor[0]), 1))
 uAxisArr = numerix.transpose(uAxisArr)
-
-# Calculate scalar factor for uniaxial anisotropy
 HuniScaleFac = -2.0 * Ku2 / Msat
-# Calculate H-field for uniaxial anisotropy
-mNorm = numerix.linalg.norm(gridCoor)
-mUnit = gridCoor
-mUnit[0] = mUnit[0] / mNorm
-mUnit[1] = mUnit[1] / mNorm
-mUnit[2] = mUnit[2] / mNorm
-mdotu = numerix.dot(mUnit, uAxisArr)
+
+mdotu = numerix.dot(gridCoor, uAxisUnitArr)
 Hmdotu = numerix.multiply(mdotu, HuniScaleFac)
+
 HuniaxBase[0] = numerix.multiply(Hmdotu, uAxisArr[0])
 HuniaxBase[1] = numerix.multiply(Hmdotu, uAxisArr[1])
 HuniaxBase[2] = numerix.multiply(Hmdotu, uAxisArr[2])
-
-PrecessionBase0 = numerix.cross(mUnit, HuniaxBase, axisa=0, axisb=0)
-PrecessionBase = numerix.transpose(PrecessionBase0)
-DampingBase0 = numerix.cross(mUnit, PrecessionBase, axisa=0, axisb=0)
-DampingBase = numerix.transpose(DampingBase0)
-TuniaxBase = numerix.multiply(PrecessionBase, -1.0 * gamFac) +  numerix.multiply(DampingBase, -1.0 * gamFac * alphaDamping)
-
-phi = CellVariable(name=r"$\phi", mesh=mesh)
-phi.setValue(0.25 / numerix.pi)
-
-D = a = epsilon = 1.
-eqI = (TransientTerm()
-      == DiffusionTerm(coeff=D)
-      - ExponentialConvectionTerm(coeff=TuniaxBase)) # doctest: +GMSH
-
-eqX = (TransientTerm()
-      == ExplicitDiffusionTerm(coeff=D)
-      - ExponentialConvectionTerm(coeff=TuniaxBase)) # doctest: +GMSH
-
-steps = 10
-timeStepDuration = 1e-18
-time = 0
-for step in range(steps):
-    print("Time point is")
-    print(time)
-    if step < 3 :
-        eqX.solve(var=phi,
-                 dt=timeStepDuration)
-    else:
-        eqI.solve(var=phi,
-                 dt=timeStepDuration)
-    time = time + timeStepDuration
+#HuniaxBase[1] = HuniScaleFac * mdotu * uAxisUnit[1]
+#HuniaxBase[2] = HuniScaleFac * mdotu * uAxisUnit[2]
