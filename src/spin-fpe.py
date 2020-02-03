@@ -9,6 +9,63 @@ from fipy import FaceVariable, CellVariable, Gmsh2DIn3DSpace, Viewer, TransientT
 from fipy.variables.variable import Variable
 from fipy.tools import numerix
 
+def HeffUniaxialAnisotropyKM(mUnit, uAxis, Ku2, Msat):
+    uAxisNorm = numerix.linalg.norm(uAxis)
+    uAxisUnit = uAxis / uAxisNorm
+    mNorm = numerix.linalg.norm(mUnit)
+    mArray = mUnit / mNorm
+    uAxisArr = numerix.tile(uAxisUnit, (len(mUnit[0]), 1))
+    uAxisArr = numerix.transpose(uAxisArr)
+    mdotu = numerix.dot(mArray, uAxisArr)
+    scaleFac = numerix.multiply(mdotu, (-2.0 * Ku2 / Msat))
+    Heff = numerix.zeros((3, len(scaleFac)), 'd')
+    Heff[0] = numerix.multiply(scaleFac, uAxisArr[0])
+    Heff[1] = numerix.multiply(scaleFac, uAxisArr[1])
+    Heff[2] = numerix.multiply(scaleFac, uAxisArr[2])
+    return Heff
+
+def HeffUniaxialAnisotropyFac(mUnit, uAxis, Hfac):
+    uAxisNorm = numerix.linalg.norm(uAxis)
+    uAxisUnit = uAxis / uAxisNorm
+    mNorm = numerix.linalg.norm(mUnit)
+    mArray = mUnit / mNorm
+    uAxisArr = numerix.tile(uAxisUnit, (len(mUnit[0]), 1))
+    uAxisArr = numerix.transpose(uAxisArr)
+    mdotu = numerix.dot(mArray, uAxisArr)
+    scaleFac = numerix.multiply(mdotu, Hfac)
+    Heff = numerix.zeros((3, len(scaleFac)), 'd')
+    Heff[0] = numerix.multiply(scaleFac, uAxisArr[0])
+    Heff[1] = numerix.multiply(scaleFac, uAxisArr[1])
+    Heff[2] = numerix.multiply(scaleFac, uAxisArr[2])
+    return Heff
+
+def calculateFieldLikeTorque(mUnit, uAxis):
+    uAxisNorm = numerix.linalg.norm(uAxis)
+    uAxisUnit = uAxis / uAxisNorm
+    mNorm = numerix.linalg.norm(mUnit)
+    mArray = mUnit / mNorm
+    uAxisArr = numerix.tile(uAxisUnit, (len(mUnit[0]), 1))
+    uAxisArr = numerix.transpose(uAxisArr)
+    m_x_u = numerix.cross(mArray, uAxisArr)
+    return numerix.transpose(m_x_u)
+
+def calculateDampingLikeTorque(mUnit, uAxis):
+    m_x_u = calculateFieldLikeTorque(mUnit, uAxis)
+    mNorm = numerix.linalg.norm(mUnit)
+    mArray = mUnit / mNorm
+    m_x_m_x_u = numerix.cross(mArray, m_x_u)
+    return numerix.transpose(m_x_m_x_u)
+
+def calculatePrecessionTerm(mUnit, Heff):
+    PrecessionBase = numerix.cross(mUnit, Heff, axisa=0, axisb=0)
+    return numerix.transpose(PrecessionBase)
+
+def calculateDampingTerm(mUnit, Heff):
+    Precession = calculatePrecessionTerm(mUnit, Heff)
+    DampingBase = numerix.cross(mUnit, Precession, axisa=0, axisb=0)
+    return numerix.transpose(DampingBase)
+
+
 # define mesh
 mesh = Gmsh2DIn3DSpace('''
     radius = 1.0;
@@ -40,7 +97,7 @@ mesh = Gmsh2DIn3DSpace('''
 #
 
 mmag = FaceVariable(name=r"$mmag$", mesh=mesh) # doctest: +GMSH
-gridCoor = mesh.faceCenters
+gridCoor = mesh.cellCenters
 
 ## Constants
 kBoltzmann = 1.38064852e-23
@@ -59,52 +116,29 @@ D = alphaDamping * gamFac * kBoltzmann * Temperature / ((1 + alphaDamping) * Msa
 Ku2 = 800e3
 uAxis = numerix.array([[0., 0., 1.]])
 
-# Define arrays storing the torque terms in LLG
-TeffBase = numerix.zeros((3,len(gridCoor[0])), 'd')
-TuniaxBase = numerix.zeros((3,len(gridCoor[0])), 'd')
-
-# Define array of HeffBase that does into LLG
-# HeffBase contains Heff terms that only vary with m (independent of t)
-HeffBase = numerix.zeros((3,len(gridCoor[0])), 'd')
-HuniaxBase = numerix.zeros((3,len(gridCoor[0])), 'd')
-
-# Normalize uniaxial anisotropy axis vector
-uAxisNorm = numerix.linalg.norm(uAxis)
-uAxisUnit = uAxis / uAxisNorm
-uAxisArr = numerix.tile(uAxisUnit, (len(gridCoor[0]), 1))
-uAxisArr = numerix.transpose(uAxisArr)
-
-# Calculate scalar factor for uniaxial anisotropy
-HuniScaleFac = -2.0 * Ku2 / Msat
 # Calculate H-field for uniaxial anisotropy
-mNorm = numerix.linalg.norm(gridCoor)
-mUnit = gridCoor
-mUnit[0] = mUnit[0] / mNorm
-mUnit[1] = mUnit[1] / mNorm
-mUnit[2] = mUnit[2] / mNorm
-mdotu = numerix.dot(mUnit, uAxisArr)
-Hmdotu = numerix.multiply(mdotu, HuniScaleFac)
-HuniaxBase[0] = numerix.multiply(Hmdotu, uAxisArr[0])
-HuniaxBase[1] = numerix.multiply(Hmdotu, uAxisArr[1])
-HuniaxBase[2] = numerix.multiply(Hmdotu, uAxisArr[2])
+HuniaxBase = HeffUniaxialAnisotropyKM(gridCoor, uAxis, Ku2, Msat)
 
-PrecessionBase0 = numerix.cross(mUnit, HuniaxBase, axisa=0, axisb=0)
-PrecessionBase = numerix.transpose(PrecessionBase0)
-DampingBase0 = numerix.cross(mUnit, PrecessionBase, axisa=0, axisb=0)
-DampingBase = numerix.transpose(DampingBase0)
-TuniaxBase = numerix.multiply(PrecessionBase, -1.0 * gamFac) +  numerix.multiply(DampingBase, -1.0 * gamFac * alphaDamping)
+HeffBase = HuniaxBase
+
+TuniaxBase = calculateDampingTerm(gridCoor / numerix.linalg.norm(gridCoor), HeffBase)
+TuniaxBase = numerix.multiply(TuniaxBase, alphaDamping)
+TuniaxBase = TuniaxBase + calculatePrecessionTerm(gridCoor / numerix.linalg.norm(gridCoor), HeffBase)
+TuniaxBase = numerix.multiply(TuniaxBase, (-1.0 * gamFac))
+
+TeffBase = TuniaxBase
+Teff = CellVariable(mesh=mesh, value=TeffBase)
 
 phi = CellVariable(name=r"$\phi", mesh=mesh)
 phi.setValue(0.25 / numerix.pi)
 
-D = a = epsilon = 1.
 eqI = (TransientTerm()
       == DiffusionTerm(coeff=D)
-      - ExponentialConvectionTerm(coeff=TuniaxBase)) # doctest: +GMSH
+      - ExponentialConvectionTerm(coeff=Teff)) # doctest: +GMSH
 
 eqX = (TransientTerm()
       == ExplicitDiffusionTerm(coeff=D)
-      - ExponentialConvectionTerm(coeff=TuniaxBase)) # doctest: +GMSH
+      - ExponentialConvectionTerm(coeff=Teff)) # doctest: +GMSH
 
 steps = 10
 timeStepDuration = 1e-18
@@ -112,7 +146,7 @@ time = 0
 for step in range(steps):
     print("Time point is")
     print(time)
-    if step < 3 :
+    if step < 0 :
         eqX.solve(var=phi,
                  dt=timeStepDuration)
     else:
