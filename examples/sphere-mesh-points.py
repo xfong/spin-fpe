@@ -6,6 +6,15 @@ import time
 from shutil import copyfile
 print('Import complete')
 
+##### Internal functions
+def getCellVariableDatapoint(coord, rho):
+  # expect coord to be a nested list
+  #   coord[0][0] = x-coordinate
+  #   coord[1][0] = y-coordinate
+  #   coord[2][0] = z-coordinate
+  # expect rho to be the fipy.CellVariable
+  return rho(coord, order=1)
+
 ##### Define Mesh
 
 print('Meshing starts')
@@ -49,4 +58,4 @@ phi = CellVariable(name=r"$\Phi$",mesh=mesh,value=0.25 / numerix.pi)
 
 temp_location = [[0.], [1.], [0.]]
 
-print(phi(temp_location, order=1))
+print(getCellVariableDatapoint(temp_location, phi))
