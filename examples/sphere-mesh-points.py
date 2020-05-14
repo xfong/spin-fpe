@@ -1,7 +1,7 @@
 print('Import starts')
 from fipy import FaceVariable, CellVariable, Gmsh2DIn3DSpace, VTKViewer, TransientTerm, ExplicitDiffusionTerm, DiffusionTerm, ExponentialConvectionTerm, DefaultSolver
 from fipy.variables.variable import Variable
-from fipy.tools import numerix
+from fipy.tools import numerix, dump
 import time
 from shutil import copyfile
 print('Import complete')
@@ -55,7 +55,7 @@ print('min mNorm='+str(min(mNorm)))
 mAllCell = mUnit / mNorm
 
 phi = CellVariable(name=r"$\Phi$",mesh=mesh,value=0.25 / numerix.pi)
-
 temp_location = [[0.], [1.], [0.]]
 
 print(getCellVariableDatapoint(temp_location, phi))
+dump.write(phi, filename="phi.dat")
