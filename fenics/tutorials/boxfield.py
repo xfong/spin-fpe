@@ -239,7 +239,7 @@ class UniformBoxGrid(object):
         try:
             return self.dirnames.index(name)
         except ValueError:
-            print name, 'is not defined'
+            print(name + "is not defined")
             return None
 
     def dirindex2name(self, i):
@@ -247,7 +247,7 @@ class UniformBoxGrid(object):
         try:
             return self.dirnames[i]
         except IndexError:
-            print i, 'is not a valid index'
+            print(i + "is not a valid index")
             return None
 
     def ok(self):
@@ -341,7 +341,7 @@ class UniformBoxGrid(object):
         try:
             self.compatible(a)
         except (IndexError,TypeError) as e:
-            print 'e=',e, type(e), e.__class__.__name__
+            print('e=' + e + type(e) + e.__class__.__name__ +
             raise e.__class__('BoxGrid.vectorized_eval(f):\n%s, BUT:\n%s' % \
                               (msg, e))
         return a

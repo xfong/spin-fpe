@@ -111,8 +111,8 @@ timeseries_p = TimeSeries('navier_stokes_cylinder/pressure_series')
 File('navier_stokes_cylinder/cylinder.xml.gz') << mesh
 
 # Create progress bar
-progress = Progress('Time-stepping')
-set_log_level(PROGRESS)
+progress = Progress('Time-stepping', num_steps)
+set_log_level(LogLevel.PROGRESS)
 
 # Time-stepping
 t = 0
@@ -152,8 +152,8 @@ for n in range(num_steps):
     p_n.assign(p_)
 
     # Update progress bar
-    progress.update(t / T)
-    print('u max:', u_.vector().array().max())
+    progress += 1
+    print('u max:', np.array(u_.vector()).max())
 
 # Hold plot
-interactive()
+#interactive()

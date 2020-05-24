@@ -63,11 +63,11 @@ for n in range(num_steps):
 
     # Compute error at vertices
     u_e = interpolate(u_D, V)
-    error = np.abs(u_e.vector().array() - u.vector().array()).max()
+    error = np.abs(np.array(u_e.vector()) - np.array(u.vector())).max()
     print('t = %.2f: error = %.3g' % (t, error))
 
     # Update previous solution
     u_n.assign(u)
 
 # Hold plot
-interactive()
+#interactive()

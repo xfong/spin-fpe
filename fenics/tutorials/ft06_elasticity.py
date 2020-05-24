@@ -9,6 +9,7 @@ its left end and deformed under its own weight.
 
 from __future__ import print_function
 from fenics import *
+from ufl import *
 
 # Scaled variables
 L = 1; W = 0.2
@@ -69,8 +70,8 @@ u_magnitude = sqrt(dot(u, u))
 u_magnitude = project(u_magnitude, V)
 plot(u_magnitude, 'Displacement magnitude')
 print('min/max u:',
-      u_magnitude.vector().array().min(),
-      u_magnitude.vector().array().max())
+      np.array(u_magnitude.vector()).min(),
+      np.array(u_magnitude.vector()).max())
 
 # Save solution to file in VTK format
 File('elasticity/displacement.pvd') << u
@@ -78,4 +79,4 @@ File('elasticity/von_mises.pvd') << von_Mises
 File('elasticity/magnitude.pvd') << u_magnitude
 
 # Hold plot
-interactive()
+#interactive()

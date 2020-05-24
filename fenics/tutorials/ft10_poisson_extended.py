@@ -350,7 +350,7 @@ def compute_errors(u_e, u):
 
     # Infinity norm based on nodal values
     u_e_ = interpolate(u_e, V)
-    E4 = abs(u_e_.vector().array() - u.vector().array()).max()
+    E4 = abs(np.array(u_e_.vector()) - np.array(u.vector())).max()
 
     # L2 norm
     E5 = errornorm(u_e, u, norm_type='L2', degree_rise=3)
@@ -417,7 +417,7 @@ def flux(u, kappa):
 
 def normalize_solution(u):
     "Normalize u: return u divided by max(u)"
-    u_array = u.vector().array()
+    u_array = np.array(u.vector())
     u_max = np.max(np.abs(u_array))
     u_array /= u_max
     u.vector()[:] = u_array
@@ -452,8 +452,8 @@ def test_solvers():
                                         rel_tol=0.1*tol[linear_solver][degree])
                     V = u.function_space()
                     u_D_Function = interpolate(u_D, V)
-                    u_D_array = u_D_Function.vector().array()
-                    error_max = (u_D_array - u.vector().array()).max()
+                    u_D_array = np.array(u_D_Function.vector())
+                    error_max = (u_D_array - np.array(u.vector())).max()
                     msg = 'max error: %g for 2 x (%d x %d) mesh, ' \
                           'degree = %d, %s solver, %s' % \
                           (error_max, Nx, Ny, degree, linear_solver,
@@ -466,7 +466,7 @@ def test_normalize_solution():
     f = Constant(-6.0)
     u = solver(f, u_D, 4, 2, 1, linear_solver='direct')
     u = normalize_solution(u)
-    computed = u.vector().array().max()
+    computed = np.array(u.vector()).max()
     expected = 1.0
     assert abs(expected - computed) < 1E-15
 
@@ -759,4 +759,4 @@ if __name__ == '__main__':
     demos[nr]()
 
     # Hold plot
-    interactive()
+    #interactive()

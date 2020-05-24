@@ -69,5 +69,5 @@ plt.savefig('poisson_membrane/curves.pdf')
 plt.savefig('poisson_membrane/curves.png')
 
 # Hold plots
-interactive()
+#interactive()
 plt.show()
